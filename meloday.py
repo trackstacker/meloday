@@ -58,7 +58,7 @@ class MelodayApp:
         """Initialize the Meloday application"""
         self.config = self._load_config()
         self.plex = PlexServer(self.config.plex_url, self.config.plex_token)
-        openai.api_key = self.config.openai_api_key
+        self.openai_client = OpenAI(api_key=self.config.openai_api_key)
         self.scheduler = BlockingScheduler()
 
     def _load_config(self) -> Config:
@@ -146,8 +146,7 @@ class MelodayApp:
         ]
 
         try:
-            client = OpenAI()
-            response = client.chat.completions.create(
+            response = self.openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=messages,
                 max_tokens=150,
