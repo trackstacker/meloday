@@ -13,10 +13,10 @@ Meloday is a Python script that dynamically generates and updates playlists on y
 ## How to Run
 
 1. **Install the required dependencies:**
-   ```bash
+   
    pip install plexapi
    pip install openai
-   ```
+   
 
 2. **Configure your environment:**
    - Update the placeholders in the script (`<PLEX_SERVER_URL>`, `<PLEX_AUTH_TOKEN>`, `<OPENAI_API_KEY>`) with your own values:
@@ -25,9 +25,9 @@ Meloday is a Python script that dynamically generates and updates playlists on y
      - `<OPENAI_API_KEY>`: Your OpenAI API key from [OpenAI](https://platform.openai.com/).
 
 3. **Run the script:**
-   ```bash
+   
    python meloday.py
-   ```
+   
 
 4. **View your playlist on Plex!**
 
@@ -53,13 +53,13 @@ To run the script automatically at different times of the day, follow these step
    - Go to the **Actions** tab and click **New**.
    - Choose **Start a Program**.
    - In the **Program/script** field, enter the path to Python:
-     ```
+    
      C:\Path\To\Python\python.exe
-     ```
+     
    - In the **Add arguments** field, enter:
-     ```
+     
      "C:\Path\To\meloday.py"
-     ```
+     
    - Replace `"C:\Path\To\meloday.py"` with the full path of your script.
 
 5. **Finalize and Enable the Task**  
