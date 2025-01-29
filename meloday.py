@@ -2,6 +2,7 @@ import os
 import re
 import random
 import logging
+import sys
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 import openai
@@ -13,8 +14,11 @@ from apscheduler.triggers.cron import CronTrigger
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO,  # Set the logging level
+    format='%(asctime)s - %(levelname)s - %(message)s',  # Log format
+    handlers=[
+        logging.StreamHandler(sys.stdout)  # Write logs to stdout for Docker
+    ]
 )
 logger = logging.getLogger(__name__)
 
