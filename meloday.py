@@ -1,180 +1,246 @@
 import os
 import re
 import random
+import logging
+from typing import List, Dict, Tuple, Optional
+from dataclasses import dataclass
 import openai
 from datetime import datetime, timedelta
 from plexapi.server import PlexServer
+from plexapi.audio import Track
+from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.triggers.cron import CronTrigger
 
-# Plex server details
-PLEX_URL = '<PLEX_SERVER_URL>'
-PLEX_TOKEN = '<PLEX_AUTH_TOKEN>'
-plex = PlexServer(PLEX_URL, PLEX_TOKEN)
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# OpenAI API Key
-openai.api_key = "<OPENAI_API_KEY>"
+@dataclass
+class TimePeriod:
+    """Data class for time period configuration"""
+    hours: range
+    desc: str
+    cover: str
 
-# Playlist and configuration constants
-BASE_PLAYLIST_NAME = "Meloday"
-HISTORY_LOOKBACK_DAYS = 30
-MAX_TRACKS = 50
-HISTORICAL_RATIO = 0.5  # 50% historical tracks
-SONIC_SIMILAR_LIMIT = 5
-COVER_IMAGE_DIR = r"<COVER_IMAGE_DIRECTORY_PATH>"
+@dataclass
+class Config:
+    """Configuration settings for the application"""
+    plex_url: str
+    plex_token: str
+    openai_api_key: str
+    base_playlist_name: str = "Meloday"
+    history_lookback_days: int = 30
+    max_tracks: int = 50
+    historical_ratio: float = 0.5
+    sonic_similar_limit: int = 5
+    cover_image_dir: str = "covers"
 
-# Time periods and metadata
-time_periods = {
-    "Early Morning": {"hours": range(4, 8), "desc": "Start your day bright and early.", "cover": "meloday-02.webp"},
-    "Morning": {"hours": range(8, 12), "desc": "Good vibes for your morning.", "cover": "meloday-03.webp"},
-    "Afternoon": {"hours": range(12, 17), "desc": "Keep the energy going through the afternoon.", "cover": "meloday-04.webp"},
-    "Evening": {"hours": range(17, 21), "desc": "Relax and unwind as the evening begins.", "cover": "meloday-05.webp"},
-    "Night": {"hours": range(21, 24), "desc": "Tunes for a cozy night.", "cover": "meloday-06.webp"},
-    "Late Night": {"hours": range(0, 4), "desc": "Late-night jams for night owls.", "cover": "meloday-01.webp"},
-}
+class MelodayApp:
+    """Main application class for Meloday"""
 
-def get_current_day():
-    """Returns the full name of the current weekday (e.g., 'Tuesday')."""
-    return datetime.now().strftime("%A")
+    time_periods: Dict[str, TimePeriod] = {
+        "Early Morning": TimePeriod(range(4, 8), "Start your day bright and early.", "meloday-02.webp"),
+        "Morning": TimePeriod(range(8, 12), "Good vibes for your morning.", "meloday-03.webp"),
+        "Afternoon": TimePeriod(range(12, 17), "Keep the energy going through the afternoon.", "meloday-04.webp"),
+        "Evening": TimePeriod(range(17, 21), "Relax and unwind as the evening begins.", "meloday-05.webp"),
+        "Night": TimePeriod(range(21, 24), "Tunes for a cozy night.", "meloday-06.webp"),
+        "Late Night": TimePeriod(range(0, 4), "Late-night jams for night owls.", "meloday-01.webp"),
+    }
 
-def clean_title(title):
-    """Normalize track titles for deduplication."""
-    return re.sub(r"\(.*?\)|\[.*?\]", "", title).strip().lower()
+    def __init__(self):
+        """Initialize the Meloday application"""
+        self.config = self._load_config()
+        self.plex = PlexServer(self.config.plex_url, self.config.plex_token)
+        openai.api_key = self.config.openai_api_key
+        self.scheduler = BlockingScheduler()
 
-def categorize_tracks_by_time(history):
-    """Organize tracks by time period."""
-    tracks_by_period = {period: [] for period in time_periods}
-    for entry in history:
-        if hasattr(entry, 'viewedAt') and entry.viewedAt:
-            hour = entry.viewedAt.hour
-            for period, details in time_periods.items():
-                if hour in details["hours"]:
-                    tracks_by_period[period].append(entry)
-    return tracks_by_period
+    def _load_config(self) -> Config:
+        """Load configuration from environment variables"""
+        required_vars = {
+            'PLEX_SERVER_URL': os.getenv('PLEX_SERVER_URL'),
+            'PLEX_AUTH_TOKEN': os.getenv('PLEX_AUTH_TOKEN'),
+            'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY')
+        }
 
-def deduplicate_tracks(tracks):
-    """Deduplicate tracks based on title + artist (ignoring album versions)."""
-    unique_tracks = {}
-    for track in tracks:
-        try:
-            key = (clean_title(track.title), track.artist().title.lower() if track.artist() else "unknown")
-            if key not in unique_tracks:
-                unique_tracks[key] = track
-        except Exception as e:
-            print(f"Error deduplicating track '{track.title}': {e}")
-    return list(unique_tracks.values())
+        missing_vars = [k for k, v in required_vars.items() if not v]
+        if missing_vars:
+            raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
-def find_similar_tracks(tracks, limit=SONIC_SIMILAR_LIMIT):
-    """Find sonically similar tracks while avoiding duplicates."""
-    similar_tracks = []
-    seen_tracks = set()
-
-    for track in tracks:
-        try:
-            for similar in track.sonicallySimilar(limit=limit):
-                key = (clean_title(similar.title), similar.artist().title.lower() if similar.artist() else "unknown")
-                if key not in seen_tracks:
-                    seen_tracks.add(key)
-                    similar_tracks.append(similar)
-        except Exception:
-            pass  # Ignore errors and continue
-    return deduplicate_tracks(similar_tracks)
-
-def generate_dynamic_title_and_description(time_period, tracks):
-    """Use AI to generate a properly formatted playlist title and description."""
-    track_titles = [f"{track.title} by {track.artist().title}" for track in tracks[:5]]
-    current_day = get_current_day()
-
-    messages = [
-        {"role": "system", "content": "You're a DJ curating playlists for specific days and dayparts. Ensure the title follows the correct format and the description reflects past listening habits."},
-        {"role": "user", "content": f"""
-        - Create a unique, fun playlist title that follows this format: 'Meloday for [Fun Daypart Title]'. Example: 'Meloday for Electropop Tuesday Afternoons'.
-        - The title must always begin with "Meloday for", but do NOT repeat "Meloday for" if it’s already there.
-        - The [Fun Daypart Title] should be creative and reflect listening habits, including the current day ({current_day}) and a mood or genre.
-        - Example: 'Meloday for Chillwave Thursday Nights' or 'Meloday for Funky Tuesday Afternoons'.
-        
-        - The description must be formatted like:
-          'You listened to [genres] on {current_day} in the {time_period}! Here's some [related genres].'
-        
-        - The playlist contains these tracks: {', '.join(track_titles)}.
-        - Do NOT include "Title:", "Description:", or any unnecessary labels in the response. Just return the title and description.
-        """}
-    ]
-
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            max_tokens=150,
-            temperature=0.8
+        return Config(
+            plex_url=required_vars['PLEX_SERVER_URL'],
+            plex_token=required_vars['PLEX_AUTH_TOKEN'],
+            openai_api_key=required_vars['OPENAI_API_KEY']
         )
-        content = response.choices[0].message['content'].strip()
 
-        # Split AI output into title + description
-        lines = content.split("\n", 1)
-        raw_title = lines[0].strip()
-        raw_description = lines[1].strip() if len(lines) > 1 else "You listened to various genres. Here's a mix to match your vibe."
+    @staticmethod
+    def clean_title(title: str) -> str:
+        """Normalize track titles for deduplication"""
+        return re.sub(r"$.*?$|$.*?$", "", title).strip().lower()
 
-        # Ensure correct title formatting
-        if raw_title.startswith("Meloday for "):
-            playlist_title = raw_title  # Use as-is if AI correctly formatted it
-        else:
-            playlist_title = f"Meloday for {raw_title}"
+    def categorize_tracks_by_time(self, history: List[Track]) -> Dict[str, List[Track]]:
+        """Organize tracks by time period"""
+        tracks_by_period = {period: [] for period in self.time_periods}
+        for entry in history:
+            if hasattr(entry, 'viewedAt') and entry.viewedAt:
+                hour = entry.viewedAt.hour
+                for period, details in self.time_periods.items():
+                    if hour in details.hours:
+                        tracks_by_period[period].append(entry)
+        return tracks_by_period
 
-        # Ensure "Description:" is removed from the output
-        description = raw_description.replace("Description:", "").strip()
+    def deduplicate_tracks(self, tracks: List[Track]) -> List[Track]:
+        """Deduplicate tracks based on title + artist"""
+        unique_tracks = {}
+        for track in tracks:
+            try:
+                key = (self.clean_title(track.title),
+                      track.artist().title.lower() if track.artist() else "unknown")
+                if key not in unique_tracks:
+                    unique_tracks[key] = track
+            except Exception as e:
+                logger.error(f"Error deduplicating track '{track.title}': {e}")
+        return list(unique_tracks.values())
 
-        return playlist_title, description
+    def find_similar_tracks(self, tracks: List[Track]) -> List[Track]:
+        """Find sonically similar tracks while avoiding duplicates"""
+        similar_tracks = []
+        seen_tracks = set()
 
-    except Exception as e:
-        print(f"Error generating title/description: {e}")
-        return f"Meloday for {current_day} {time_period}", f"You listened to music on {current_day} in the {time_period}. Here's a mix to match your vibe."
+        for track in tracks:
+            try:
+                for similar in track.sonicallySimilar(limit=self.config.sonic_similar_limit):
+                    key = (self.clean_title(similar.title),
+                          similar.artist().title.lower() if similar.artist() else "unknown")
+                    if key not in seen_tracks:
+                        seen_tracks.add(key)
+                        similar_tracks.append(similar)
+            except Exception as e:
+                logger.warning(f"Error finding similar tracks for '{track.title}': {e}")
 
-def create_or_update_playlist(name, tracks, description, cover_file):
-    """Find an existing 'Meloday for' playlist and update it, or create one if it doesn't exist."""
-    try:
-        # Search for an existing playlist that starts with "Meloday for "
-        existing_playlist = next((p for p in plex.playlists() if p.title.startswith("Meloday for ")), None)
+        return self.deduplicate_tracks(similar_tracks)
 
-        if existing_playlist:
-            print(f"Updating existing playlist: {existing_playlist.title}")
-            existing_playlist.removeItems(existing_playlist.items())  # Clear old tracks
-            existing_playlist.addItems(tracks)  # Add new tracks
-            existing_playlist.editTitle(name)  # Update the playlist title
-            existing_playlist.editSummary(description)  # Update description
-            playlist = existing_playlist  # Use the existing playlist
-        else:
-            print(f"Creating new playlist: {name}")
-            playlist = plex.createPlaylist(name, items=tracks)
-            playlist.editSummary(description)
+    def generate_playlist_metadata(self, time_period: str, tracks: List[Track]) -> Tuple[str, str]:
+        """Generate AI-powered playlist title and description"""
+        track_titles = [f"{track.title} by {track.artist().title}" for track in tracks[:5]]
+        current_day = datetime.now().strftime("%A")
 
-        # Update the playlist cover
-        cover_path = os.path.join(COVER_IMAGE_DIR, cover_file)
-        if os.path.exists(cover_path):
-            playlist.uploadPoster(filepath=cover_path)
+        messages = [
+            {"role": "system", "content": "You're a DJ curating playlists for specific days and dayparts."},
+            {"role": "user", "content": f"""
+            Create a playlist title and description for:
+            - Day: {current_day}
+            - Time: {time_period}
+            - Sample tracks: {', '.join(track_titles)}
 
-        print(f"Playlist '{playlist.title}' updated with {len(tracks)} tracks.")
+            Format:
+            Title: "Meloday for [Creative Name]"
+            Description: Brief, engaging description of the music style and mood.
+            """}
+        ]
 
-    except Exception as e:
-        print(f"Error creating/updating playlist: {e}")
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                max_tokens=150,
+                temperature=0.8
+            )
+            content = response.choices[0].message['content'].strip()
+            title, description = content.split("\n", 1)
+            return title.strip(), description.strip()
+        except Exception as e:
+            logger.error(f"Error generating title/description: {e}")
+            return (f"Meloday for {current_day} {time_period}",
+                   f"Your {time_period} playlist for {current_day}")
+
+    def update_playlist(self) -> None:
+        """Main function to update the playlist"""
+        try:
+            logger.info("Starting playlist update")
+
+            # Get current time period
+            current_hour = datetime.now().hour
+            current_period = next((period for period, details in self.time_periods.items()
+                                 if current_hour in details.hours), "Late Night")
+
+            # Fetch and process tracks
+            music_section = self.plex.library.section('Music')
+            history = music_section.history(
+                mindate=datetime.now() - timedelta(days=self.config.history_lookback_days)
+            )
+
+            tracks_by_period = self.categorize_tracks_by_time(history)
+            selected_tracks = self.deduplicate_tracks(tracks_by_period.get(current_period, []))
+
+            # Create playlist
+            historical_count = int(self.config.max_tracks * self.config.historical_ratio)
+            historical_tracks = random.sample(selected_tracks, min(len(selected_tracks), historical_count))
+            similar_tracks = self.find_similar_tracks(historical_tracks)
+
+            all_tracks = self.deduplicate_tracks(historical_tracks + similar_tracks)[:self.config.max_tracks]
+
+            if not all_tracks:
+                logger.warning("No tracks found for playlist")
+                return
+
+            # Generate metadata and update playlist
+            title, description = self.generate_playlist_metadata(current_period, all_tracks)
+
+            # Update or create playlist
+            existing_playlist = next((p for p in self.plex.playlists()
+                                   if p.title.startswith("Meloday for ")), None)
+
+            if existing_playlist:
+                existing_playlist.removeItems(existing_playlist.items())
+                existing_playlist.addItems(all_tracks)
+                existing_playlist.editTitle(title)
+                existing_playlist.editSummary(description)
+                playlist = existing_playlist
+            else:
+                playlist = self.plex.createPlaylist(title, items=all_tracks)
+                playlist.editSummary(description)
+
+            # Update cover image
+            cover_path = os.path.join(
+                self.config.cover_image_dir,
+                self.time_periods[current_period].cover
+            )
+            if os.path.exists(cover_path):
+                playlist.uploadPoster(filepath=cover_path)
+
+            logger.info(f"Successfully updated playlist '{title}' with {len(all_tracks)} tracks")
+
+        except Exception as e:
+            logger.error(f"Error updating playlist: {e}")
+
+    def schedule_updates(self) -> None:
+        """Configure and start the scheduler"""
+        # Schedule updates for each time period transition
+        for period in self.time_periods:
+            start_hour = self.time_periods[period].hours[0]
+            self.scheduler.add_job(
+                self.update_playlist,
+                CronTrigger(hour=start_hour, minute=0)
+            )
+
+        # Add an immediate update when starting
+        self.scheduler.add_job(self.update_playlist)
+
+        logger.info("Scheduler started - playlist will update at the start of each time period")
+        self.scheduler.start()
 
 def main():
-    print("Fetching listening history...")
-    music_section = plex.library.section('Music')
-    history = music_section.history(mindate=datetime.now() - timedelta(days=HISTORY_LOOKBACK_DAYS))
-
-    print("Categorizing tracks by time period...")
-    tracks_by_period = categorize_tracks_by_time(history)
-
-    current_hour = datetime.now().hour
-    current_period = next((period for period, details in time_periods.items() if current_hour in details["hours"]), "Late Night")
-
-    selected_tracks = deduplicate_tracks(tracks_by_period.get(current_period, []))
-    historical_tracks = random.sample(selected_tracks, min(len(selected_tracks), int(MAX_TRACKS * HISTORICAL_RATIO)))
-    similar_tracks = find_similar_tracks(historical_tracks)
-
-    all_tracks = deduplicate_tracks(historical_tracks + similar_tracks)[:MAX_TRACKS]
-    title, description = generate_dynamic_title_and_description(current_period, all_tracks)
-
-    create_or_update_playlist(title, all_tracks, description, time_periods[current_period]['cover'])
+    """Main entry point"""
+    try:
+        app = MelodayApp()
+        app.schedule_updates()
+    except KeyboardInterrupt:
+        logger.info("Application stopped by user")
+    except Exception as e:
+        logger.error(f"Application error: {e}")
 
 if __name__ == "__main__":
     main()
