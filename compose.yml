@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  meloday:
+    image: ghcr.io/<your-username>/meloday:latest  # Replace <your-username> with your GitHub username or org
+    container_name: meloday
+    environment:
+      - PLEX_SERVER_URL=${PLEX_SERVER_URL}
+      - PLEX_AUTH_TOKEN=${PLEX_AUTH_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./covers:/app/covers  # Mount covers directory for persistence
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
