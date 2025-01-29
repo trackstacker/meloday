@@ -5,7 +5,7 @@ import logging
 import sys
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
-import openai
+from openai import OpenAI
 from datetime import datetime, timedelta
 from plexapi.server import PlexServer
 from plexapi.audio import Track
@@ -146,19 +146,20 @@ class MelodayApp:
         ]
 
         try:
-            response = openai.ChatCompletion.create(
+            client = OpenAI()
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=messages,
                 max_tokens=150,
                 temperature=0.8
             )
-            content = response.choices[0].message['content'].strip()
+            content = response.choices[0].message.content.strip()
             title, description = content.split("\n", 1)
             return title.strip(), description.strip()
         except Exception as e:
             logger.error(f"Error generating title/description: {e}")
             return (f"Meloday for {current_day} {time_period}",
-                   f"Your {time_period} playlist for {current_day}")
+                f"Your {time_period} playlist for {current_day}")
 
     def update_playlist(self) -> None:
         """Main function to update the playlist"""
