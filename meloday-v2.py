@@ -88,6 +88,7 @@ def enhance_with_ai(title, description, added_styles, selected_genre, selected_m
     - **Keep it short** (~5 words max after "Meloday for").
     - Always prefix the playlist with "Meloday for" if it's not present, but do not repeat it more than once.
     - Do not include any markup language or special characters (##, !, ", -, :, etc).
+    - Do not add the word Title: to the title itself
 
     **Description Guidelines:**
     - Write in the tone of an engaging **music journalist or DJ**.
@@ -99,6 +100,7 @@ def enhance_with_ai(title, description, added_styles, selected_genre, selected_m
       - "You've been deep into Chillhop and Aggressive this morning—now ride the wave with Pop, Kinetic, and Hypnotic grooves. We're starting with ‘Neon Skyline’ by Andy Shauf, an indie groove perfect for lazy mornings. Then, ‘Afterglow’ by CHVRCHES layers shimmering synth textures, before closing with ‘Electric Sunset’ by Washed Out."
       - "You've been grooving to British Soul and Funk this afternoon. Now let's bring in some Future Bass and Cosmic Disco. We’re easing in with ‘Pink + White’ by Frank Ocean, then drifting into ‘Tame Impala’ with ‘Borderline,’ and closing with ‘Spotless Mind’ by Jhene Aiko. Jhene’s dreamy storytelling is the perfect way to wrap up this mix."
     - Do not include any markup language or special characters (##, !, ", -, :, etc).
+    - Do not add thr word Description: to the description itself
 
     **Data for this playlist:**
     - Current Title: {title}
@@ -109,7 +111,7 @@ def enhance_with_ai(title, description, added_styles, selected_genre, selected_m
     - Featured Tracks: {track_snippet}
     - Fun Fact Focus: "{fact_track}" by {fact_artist}
 
-    **Return only two lines:**
+    **Return exactly two lines without any labels, prefixes, or formatting:**
     Line 1 = Improved title (no extra words)
     Line 2 = Improved description (short, engaging, DJ-style, retaining all details)
     """
