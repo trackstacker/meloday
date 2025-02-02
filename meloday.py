@@ -139,9 +139,32 @@ class MelodayApp:
             - Time: {time_period}
             - Sample tracks: {', '.join(track_titles)}
 
-            Format:
-            Title: "Meloday for [Creative Name]"
+            **Format:**
             Description: Brief, engaging description of the music style and mood.
+
+            **Title Guidelines:**
+                - The title should follow this format: "Meloday for [fitting clever adjective] [genre] [day] [time period]".
+                - The adjective should match the **mood** and **energy** of the playlist. Example adjectives: "Brat", "Dreamy", "Electric", "Hazy", "Slick", "Vibrant".
+                - The genre should be **clear but fun**. If multiple genres, combine them in a natural way.
+                - **Keep it short** (~5 words max after "Meloday for").
+                - Always prefix the playlist with "Meloday for" if it's not present, but do not repeat it more than once.
+                - Do not include any markup language or special characters (##, !, ", -, :, etc).
+                - Do not add the word Title: to the title itself
+
+            **Description Guidelines:**
+                - Write in the tone of an engaging **music journalist or DJ**.
+                - Mention the **first, middle, and last tracks** with their **artist names**.
+                - **Pick one** of those three artists and add an interesting fact, insight, or note about why they fit the playlist.
+                - Example:
+                - "Ride the wave with Pop, Kinetic, and Hypnotic grooves. We're starting with ‘Neon Skyline’ by Andy Shauf, an indie groove perfect for lazy mornings. Then, ‘Afterglow’ by CHVRCHES layers shimmering synth textures, before closing with ‘Electric Sunset’ by Washed Out."
+                - "Let's bring in some Future Bass and Cosmic Disco. We’re easing in with ‘Pink + White’ by Frank Ocean, then drifting into ‘Tame Impala’ with ‘Borderline,’ and closing with ‘Spotless Mind’ by Jhene Aiko. Jhene’s dreamy storytelling is the perfect way to wrap up this mix."
+                - Do not include any markup language or special characters (##, !, ", -, :, etc).
+                - Do not add the word Description: to the description itself
+
+            **Return exactly two lines without any labels, prefixes, or formatting:**
+                Line 1 = Title (no extra words)
+                Line 2 = Description (short, engaging, DJ-style, retaining all details)
+            
             """}
         ]
 
