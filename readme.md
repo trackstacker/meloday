@@ -1,99 +1,89 @@
-# Meloday - Dynamic Plex Playlist Generator
+# Docker support coming soon
 
-Meloday is a Python script that dynamically generates and updates playlists on your Plex server based on your listening history and time of day. Inspired by Spotify’s Daylist, it creates personalized playlists using Plex metadata.
+# Overview
 
-## Features
-- Automatically generates time-of-day themed playlists (e.g., "Meloday for Chillwave Friday Night")
-- Uses Plex listening history to suggest music
-- Filters out 1-star rated tracks for a refined experience
-- Sonic similarity-based recommendations for better playlist flow
-- Toggleable AI support for enhanced playlist titles and descriptions
-- AI-assisted track selection for context-appropriate songs (optional)
-- Automatically updates playlists in Plex
-- Beautiful covers for each time-of-day
+[Meloday](https://github.com/trackstacker/meloday) is a script that **automatically creates playlists throughout the day**, evolving with your listening habits. Inspired by Spotify’s **daylist**, it pulls tracks from your **Plex listening history**, finds **patterns in what you like at different times**, and builds a mix that feels both **familiar and fresh**—without getting repetitive.
 
-## What's New in v2.0
-- Toggleable OpenAI support: AI-enhanced playlist titles and descriptions can be turned on or off.
-- AI-generated playlist descriptions are more detailed and varied.
-- AI may prioritize tracks that fit the time of day (e.g., a song called "Coffee" for early mornings).
-- Formatting changes to remove special characters and markup language from titles and descriptions.
-- Meloday covers have been updated and renamed to make them easier to identify.
-- Versions of covers without text have been added for users who want to customize them.
+Each playlist update brings a **new cover, a new name, and a fresh mix of tracks** that fit the current moment. It also reaches into a **custom-built mood map** filled with different ways to describe the playlist’s vibe, so the names always stay interesting.
 
-### Example Playlist Titles & Descriptions
+# What It Does
 
-Without AI  
-Title: Meloday for Romantic Downtempo Bass Saturday Afternoon  
-Description: You listened to Downtempo Bass and Romantic in the Afternoon. Here's some Escape Room, Indie Soul, Confident, and Sensual tracks as well.
+* **Creates playlists based on your past listening habits** – It looks at what you’ve played before at the same time of day.
+* **Avoids repeats** – Tracks you’ve played too recently won’t be included.
+* **Finds sonically similar tracks** – It expands your playlist with music that fits the vibe.
+* **Uses Plex metadata, not AI** – Everything is based on your existing library and Plex’s own data.
+* **Automatically updates itself** – No manual curation needed.
+* **Applies custom covers and descriptions** – The playlist gets a new look each time it updates.
+* **Gets creative with playlist names** – It pulls words from a mood map for extra variety.
 
-With AI  
-Title: Meloday for Dreamy Lounge Grooves Saturday Afternoon  
-Description: You’ve been drifting through Downtempo Bass and Romantic vibes this afternoon. Let’s add some smooth Indie Soul, confident Escape Room beats, and a touch of Sensual energy. Start with "Neon Dreams" by The Midnight, then ease into "Stay Awhile" by Rhye before closing with the hypnotic pulse of "After Dark" by Mr. Kitty.
+# What It Doesn’t Do
 
-## Requirements
-- Python 3.7 or later
-- Plex Media Server with a Music library
-- OpenAI API Key (optional, for AI-generated playlist titles and descriptions) – [Get yours here](https://platform.openai.com/)
-- Plex API Token (for authentication and interaction with Plex) – [How to find it](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)
-- PlexAPI Python library
+* **It doesn’t add songs from outside your Plex library** – Everything comes from what you already have.
+* **It doesn’t use AI recommendations** – There’s no external algorithm picking tracks, just your own listening history.
+* **It doesn’t force specific genres or moods** – Your past listening shapes each playlist organically.
+* **It doesn’t replace your other playlists** – This just runs alongside whatever else you have in Plex.
 
-## Installation
+# How It Works
 
-### 1. Install dependencies:
-pip install plexapi  
-pip install openai  
+# 1. Identifies the Current Time Period
 
-If you do not want AI enhancements, you can skip installing OpenAI.
+* Meloday divides the day into **morning, afternoon, evening, night, etc.**
+* The script figures out the current time and selects the right time period.
 
-### 2. Configure environment:
-Edit the script to set your Plex server details:
+# 2. Pulls Tracks from Your Listening History
 
-PLEX_URL = 'http://127.0.0.1:32400'  # Replace with your Plex URL  
-PLEX_TOKEN = 'YOUR_PLEX_TOKEN'  # Replace with your Plex authentication token  
-openai.api_key = "YOUR_OPENAI_API_KEY"  # Optional, replace if using AI features  
-USE_AI_ENHANCEMENTS = False  # Set to True if you want AI-enhanced playlist titles and descriptions  
+* It looks at **what you’ve played at this time of day in the past**.
+* If a track was **played too recently**, it’s skipped to keep things fresh.
 
-### 3. Run the script:
-python meloday.py  
+# 3. Finds Sonically Similar Tracks
 
-Your playlist should now be updated in Plex.
+* It uses Plex’s **sonicallySimilar()** function to find related songs.
+* This helps the playlist feel cohesive instead of just being a random shuffle.
 
-## Automating with Windows Task Scheduler
-To schedule the script to run automatically at different times of the day, follow these steps:
+# 4. Filters & Organizes Tracks
 
-1. Open Task Scheduler:  
-   - Press Win + R, type taskschd.msc, and press Enter.  
+* **Duplicates** (live versions, remixes, etc.) are removed if they’re too similar.
+* **Low-rated tracks** (anything with 1 or 2 stars) are skipped.
+* **A mix of popular and rare tracks** is used so the playlist doesn’t feel repetitive.
 
-2. Create a New Task:  
-   - Click Action > Create Task.  
-   - Under the General tab:  
-     - Name the task (e.g., Meloday Morning Playlist).  
-     - Check Run with highest privileges.  
+# 5. Sorts the Playlist for a Natural Flow
 
-3. Set Triggers for Different Time Periods:  
-   - Go to the Triggers tab and click New.  
-   - Set the time you want the script to run.  
-   - Choose Daily and repeat this step for other time periods.  
+* The **first track** is the earliest one you’ve played in that time period.
+* The **last track** is the most recent one you’ve played in that time period.
+* Everything in between is sorted by **sonic similarity** for smooth transitions.
 
-4. Set the Action to Run the Script:  
-   - Go to the Actions tab and click New.  
-   - Choose Start a Program.  
-   - In the Program/script field, enter the path to Python:  
+# 6. Creates a Playlist Title & Description
 
-     C:\Path\To\Python\python.exe  
+Every playlist gets a **unique, descriptive name** based on what you’ve been listening to. Meloday doesn’t just pull from a basic list of moods—it taps into a **custom-built mood map** that expands common moods into more creative variations.
 
-   - In the Add arguments field, enter:  
+For example, if the playlist has a **cheerful vibe**, it won’t just call it "Cheerful." Instead, it might use words like:  Joyous, Sunny, Happy, Upbeat, or Jovial. Or, if it leans a bit more **quirky**, it might get a title with words like: Eccentric, Unconventional, Odd, or Whimsical.
 
-     "C:\Path\To\meloday.py"  
+This means **every playlist name feels different**, even if the mood stays similar, so maybe a *Brash Vibrant Lo-Fi Study Wednesday Evening* is in your future.
 
-   Replace "C:\Path\To\meloday.py" with the full path of your script.  
+# 7. Applies a Cover & Updates the Playlist in Plex
 
-5. Finalize and Enable the Task:  
-   - Click OK and enter your Windows password if prompted.  
-   - Right-click the task and choose Run to test it.  
+* The cover image changes depending on the time of day.
+* The script applies a **text overlay** to customize the cover.
+* The playlist is updated with the new tracks, title, and description.
 
-Your playlists should update automatically at the configured times.
+# Best Mileage
 
-## Support This Project
-If you find Meloday useful and want to support its development, consider donating:  
-[Buy Me a Coffee](https://buymeacoffee.com/trackstack)
+Meloday works best with **larger music libraries**. Since it pulls from **your own past listening**, the more variety you have, the better the playlists will be.
+
+* If your **library is small**, Meloday might start repeating songs more often, creating a **feedback loop** where the same tracks show up frequently.
+* If you **haven't rated your tracks**, it will still work, but if you take the time to rate songs (1-5 stars), Meloday will be able to **avoid low-rated content** and refine selections over time.
+* Playlist generation *should* work for just about any size you make it, but a larger size will no doubt take longer to generate.
+* Meloday was **tested on a library of only about 25,000 tracks**, so your mileage may vary on significantly smaller or larger collections.
+
+# What’s Changed Since v2
+
+* **No more OpenAI** – Focused on **core functionality first** before expanding into AI recommendations in the future.
+* **Mood map integration** – More **random and creative titles/descriptions** based on expanded word choices.
+* **Plex username support** – The playlist description now **includes your Plex username** for a more personal touch.
+* **Next update time in the description** – Now tells you **exactly when the playlist will refresh**.
+* **More fallback methods** – If not enough historical data is available, Meloday will **use additional logic to fill the playlist** instead of leaving gaps.
+* **Now strictly maintains a single playlist** – Meloday is designed to provide one evolving playlist that updates throughout the day. The logic has been improved to ensure it no longer creates multiple playlists unintentionally. If you experienced this issue before, it should now be resolved.
+
+# Who Made This?
+
+Just me, and a bit of help from ChatGPT! I’m learning as I go, and this seemed like a fun project to try out. It started as a small project for myself, but as I continued to use it, I found it really enjoyable and exciting to look forward to listening to every day! I figured I'd share it with the community, get more feedback, share the idea and see what happened! If you’re enjoying Meloday and feel like saying thanks, [a coffee is always appreciated](https://buymeacoffee.com/trackstack). No pressure at all though, I just want people to enjoy it!
